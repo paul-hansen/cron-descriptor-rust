@@ -173,7 +173,6 @@ pub mod cronparser {
     }
 
     pub mod cron_expression_descriptor {
-        use lazy_static::lazy_static;
         use std::collections::HashMap;
         use string_builder::Builder;
 
@@ -208,8 +207,6 @@ pub mod cronparser {
              * * * * *  command to execute
             */
 
-            use lazy_static::lazy_static;
-
             use crate::cronparser::cron_expression_descriptor::ParseException;
             use crate::cronparser::Options;
             use crate::string_utils;
@@ -220,11 +217,8 @@ pub mod cronparser {
             ) -> Result<Vec<String>, ParseException> {
                 let mut parsed: Vec<&str> = vec![""; 7];
                 if expression.trim().is_empty() {
-                    lazy_static! {
-                        static ref ERR_STR: String = t!("expression_empty_exception");
-                    }
                     Err(ParseException {
-                        s: expression.to_string(),
+                        s: t!("expression_empty_exception"),
                         error_offset: 0,
                     })
                 } else {
