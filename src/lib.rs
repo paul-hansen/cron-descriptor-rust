@@ -213,7 +213,6 @@ pub mod cronparser {
             use crate::cronparser::cron_expression_descriptor::ParseException;
             use crate::cronparser::Options;
             use crate::string_utils;
-            use regex::Regex;
 
             pub fn parse(
                 expression: &str,
@@ -241,10 +240,12 @@ pub mod cronparser {
                         (1..=5).for_each(|i| parsed[i] = expression_parts[i - 1]);
                         // println!("length is 5: {}", parsed[5]);
                     } else if expression_parts.len() == 6 {
-                        lazy_static! {
-                            static ref YEAR_RE: Regex = Regex::new(r"\d{4}$").unwrap();
-                        }
-                        if YEAR_RE.is_match(expression_parts[5]) {
+                        let ends_with_year = expression_parts[5]
+                            .chars()
+                            .rev()
+                            .take(4)
+                            .all(|c| c.is_ascii_digit());
+                        if ends_with_year {
                             (1..=6).for_each(|i| parsed[i] = expression_parts[i - 1]);
                         } else {
                             (0..6).for_each(|i| parsed[i] = expression_parts[i]);
@@ -481,7 +482,6 @@ pub mod cronparser {
             expression_parts: &Vec<String>,
             options: &Options,
         ) -> String {
-            use regex::Regex;
             use strfmt::strfmt;
             let exp = expression_parts[3].replace("?", "*");
             let description = if "L" == exp {
@@ -489,12 +489,22 @@ pub mod cronparser {
             } else if "WL" == exp || "LW" == exp {
                 format!(", {}", t!("messages.on_the_last_weekday_of_the_month"))
             } else {
-                lazy_static! {
-                    static ref DOM_RE: Regex = Regex::new(r"(\dW)|(W\d)").unwrap();
-                }
-                if DOM_RE.is_match(&exp) {
-                    let capt = DOM_RE.captures_iter(&exp).next().unwrap();
-                    let no_w = capt[0].replace("W", "");
+                let chars: Vec<_> = exp.chars().collect();
+                let weekday_index = chars.windows(2).enumerate().find_map(|(i, window)| {
+                    match window {
+                        [first, second] => (first.is_ascii_digit() && *second == 'W')
+                            .then_some(i)
+                            .or((*first == 'W' && second.is_ascii_digit()).then_some(i)),
+                        // Wouldn't need this if array_windows was stablized
+                        _ => unreachable!("window should only have 2 elements"),
+                    }
+                });
+                if let Some(weekday_index) = weekday_index {
+                    let no_w = {
+                        let mut exp = exp.to_string();
+                        exp.remove(weekday_index);
+                        exp
+                    };
                     let day_number = no_w.parse::<u8>().unwrap();
                     let day_string = if day_number == 1 {
                         t!("messages.first_weekday")
